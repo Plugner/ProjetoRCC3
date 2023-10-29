@@ -1,53 +1,89 @@
 <?php
-require_once 'vendor/autoload.php';
+/*
 
-use MercadoPago\Client\Payment\PaymentClient;
-use MercadoPago\Exceptions\MPApiException;
-use MercadoPago\MercadoPagoConfig;
+CREATE TABLE clientes (
+email VARCHAR(255) NOT NULL,
+PRIMARY KEY (email)
+);
 
-// Configurações do Mercado Pago
-MercadoPagoConfig::setAccessToken("MERCADO_PAGO_ACCESS_TOKEN");
-$client = new PaymentClient();
-// Dados para o
-$amount = 100; // Valor do pagamento (ler do produto na db no futuro)
-$description = "Pagamento de teste"; // Descrição do pagamento
+INSERT INTO clientes (email) VALUES ('teste@example.com');
 
-// DB (separar depois)
-$db = new PDO("mysql:host=localhost;dbname=projrcc", "root", "");
-$sql = "SELECT email FROM users WHERE id = 1";
-$stmt = $db->query($sql);
-$payer["email"] = $stmt->fetchColumn();
+*/
 
-$createRequest = [
-    "transaction_amount" => $amount,
-    "description" => $description,
-    "payment_method_id" => "pix",
-    "payer" => $payer,
-];
 
-// Tenta criar o pagamento
-try {
-    $payment = $client->create($createRequest);
-} catch (MPApiException $e) {
-    // Tratamento de erros
-    echo $e->getMessage();
-    exit;
+/*
+ * tabela venda
+ * [id,cliente->email,total]
+ */
+
+/*
+ * {
+   "items":[...],
+   "customer":{...},
+   "payments":[
+      {
+         "amount" : 3000,
+         "payment_method":"checkout",
+         "checkout": {
+            "expires_in":120,
+            "billing_address_editable" : false,
+            "customer_editable" : true,
+            "accepted_payment_methods": ["credit_card"],
+            "success_url": "https://www.pagar.me",
+            "credit_card": {...}
+         }
+      }
+   ]
 }
 
-// Redireciona o usuário para a página de pagamento
-header("Location: " . $payment->getRedirectUrl());
+ */
+require_once('vendor/autoload.php');
 
-echo '<link rel="stylesheet" href="style.css">';
-echo '<div class="container">
-  <h1 class="title">Pagamento via Mercado Pago</h1>
-  <p class="subtitle">
-    O valor do pagamento é de R$ ' . $amount . '.
-  </p>
-  <p class="subtitle">
-    O pagamento será realizado com o método ' . $createRequest["payment_method_id"] . '.
-  </p>
-  <a href="' . $payment->getRedirectUrl() . '" class="button">
-    Pagar
-  </a>
-</div>';
-?>
+$client = new \GuzzleHttp\Client();
+
+try {
+    $response = $client->request('POST', 'https://api.pagar.me/core/v5/orders', [
+        'body' => '
+        {
+            "customer": {
+                "name":"Fulano",
+                "type":"individual",
+                "email":"fulano@gmail.com",
+                "code":"id_user"
+            },
+            "items": [
+                {
+                    "amount":10,
+                    "description":"Item 1",
+                    "quantity":1,
+                    "code":"id_item"
+                }
+            ],
+            "payments": [
+                {
+                    "checkout": {
+                        "expires_in":60,
+                        "accepted_payment_methods": ["credit_card","pix","debit_card"],
+                        "success_url":"policiarcc.com/forum",
+                        "customer_editable":true,
+                        "billing_address_editable":true
+                    },
+                    "Pix":{"expires_in":600},
+                    "payment_method":"checkout",
+                    "amount":1000
+                }
+            ]
+        }',
+        'headers' => [
+            'accept' => 'application/json',
+            'authorization' => 'Basic -',
+            'content-type' => 'application/json',
+        ],
+    ]);
+    $res = json_decode($response->getBody());
+    $redirect_url = $res['checkouts'][0]['payment_url'];
+    header("Location: " . $redirect_url);
+} catch (\GuzzleHttp\Exception\GuzzleException $e) {
+    // Tratar erro na requisição
+    die("Ocorreu um erro! " . $e->getMessage());
+}
